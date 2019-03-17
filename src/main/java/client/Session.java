@@ -2,19 +2,16 @@ package client;
 
 import com.google.gson.Gson;
 import lombok.Setter;
-import org.apache.http.Consts;
-import org.apache.http.HttpEntity;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.HttpClient;
+import org.apache.http.*;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.fluent.Request;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
@@ -24,17 +21,18 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 
-//@Log4j
 public class Session {
     private CloseableHttpClient client;
-    private String host;
+    private URIBuilder uriBuilder;
     private Gson gson = new Gson();
     @Setter
     private String basePath;
 
-    public Session(String host) {
-        this.host = host;
-//        client = HttpClients.custom().setDefaultHeaders();
+    public Session(String host) throws URISyntaxException {
+        uriBuilder = new URIBuilder(host);
+        Header header = new BasicHeader("Project-Id", "BlaBla");
+        Header header1 = new BasicHeader(HttpHeaders.CONTENT_TYPE, "hyi");
+        client = HttpClients.custom().setDefaultHeaders(Arrays.asList(header, header1)).build();
     }
 
     // region helpers
@@ -51,44 +49,36 @@ public class Session {
     }
     //endregion helpers
 
+    //region http
     public <T> T get(List<NameValuePair> queryParam, Class<T> clazz) throws URISyntaxException, IOException {
-        URI uri = new URIBuilder(host).addParameters(queryParam).build();
+        URI uri = uriBuilder.setPath(basePath).addParameters(queryParam).build();
         HttpEntity entity = client.execute(new HttpGet(uri)).getEntity();
 
         return toObject(body(entity), clazz);
     }
 
     public <T> T get(Class<T> clazz) throws URISyntaxException, IOException {
-        URIBuilder builder = new URIBuilder(host.concat(basePath));
-        HttpEntity entity = client.execute(new HttpGet(builder.build())).getEntity();
+        URI uri = uriBuilder.setPath(basePath).build();
+        System.out.println(uri.toString());
+        HttpEntity entity = client.execute(new HttpGet(uri)).getEntity();
 
         return toObject(body(entity), clazz);
     }
 
     public <T> T post(Object request, Class<T> clazz) throws URISyntaxException, IOException {
-        URIBuilder builder = new URIBuilder(host);
-        HttpPost post = new HttpPost(builder.build());
+        HttpPost post = new HttpPost(uriBuilder.build());
         post.setEntity(stringEntity(request));
         HttpEntity entity = client.execute(post).getEntity();
 
         return toObject(body(entity), clazz);
     }
 
-    public <T> T post(List<BasicNameValuePair> formParams, Class<T> clazz) throws URISyntaxException, IOException {
-        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(formParams, Consts.UTF_8);
-        URIBuilder builder = new URIBuilder(host);
-        HttpPost post = new HttpPost(builder.build());
-        post.setEntity(entity);
+    public <T> T post(List<NameValuePair> formParams, Class<T> clazz) throws URISyntaxException, IOException {
+        HttpPost post = new HttpPost(uriBuilder.build());
+        post.setEntity(new UrlEncodedFormEntity(formParams, Consts.UTF_8));
         HttpEntity response = client.execute(post).getEntity();
-        System.out.println(body(post.getEntity()));
+
         return toObject(body(response), clazz);
     }
-
-    public static void main(String[] args) throws IOException, URISyntaxException {
-        Session session = new Session("http://jsonplaceholder.typicode.com");
-        session.setBasePath("/posts/1");
-        List<NameValuePair> params = Arrays.<NameValuePair>asList(new BasicNameValuePair("postId", "1"));
-
-        System.out.println(session.get(params, String.class));
-    }
+    //endregion
 }
